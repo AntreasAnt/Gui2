@@ -7,6 +7,7 @@ This is a ready-to-run GUI skeleton for linear spatial filtering.
 Students will implement the actual filtering logic separately.
 """
 import os
+import sys
 import cv2
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
@@ -16,23 +17,29 @@ APP_TITLE = "Image Filtering — Linear"
 DARK_QSS = """
 * { font-family: 'Segoe UI', Arial; font-size: 10.5pt; color: #E6E6E6; }
 QWidget { background-color: #1f2023; }
-QFrame#SidePanel { background-color: #2b2d31; border: 1px solid #2b2d31; border-radius: 8px; }
-QFrame#TopBar { background-color: #2b2d31; border: 1px solid #2b2d31; border-radius: 8px; }
 QLabel#Banner { color: #f1c57a; font-weight: 700; }
 QPushButton { background-color: #f1c57a; color: #2b2d31; border: 0px; padding: 8px 14px; border-radius: 6px; }
 QPushButton:hover { background-color: #ffd28e; }
 QPushButton:pressed { background-color: #e7b86a; }
 QPushButton#Secondary { background: #3a3c42; color: #E6E6E6; font-weight: 500; }
 QPushButton#Secondary:hover { background: #44474e; }
-QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QSlider {
+
+
+QComboBox {
+ background: #1c1d21; border: 1px solid #3a3c42; padding: 6px 20px 6px 6px; border-radius: 6px;
+ min-width: 120px; selection-background-color: #f1c57a; color: white;
+}
+QLineEdit, QSlider {
  background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px;
 }
+
 QSlider::groove:horizontal { height: 6px; background: #3a3c42; border-radius: 3px; }
 QSlider::handle:horizontal { background: #f1c57a; width: 14px; border-radius: 7px; margin: -4px 0; }
 QTabWidget::pane { border: 1px solid #3a3c42; background-color: #1f2023; }
-QTabBar::tab { background: #2b2d31; color: #000000; padding: 8px 16px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
-QTabBar::tab:selected { background: #f1c57a; color: #2b2d31; font-weight: 600; }
+QTabBar::tab { background: #2b2d31; color: white; padding: 10px 20px; margin-right: 0px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+QTabBar::tab:selected { background: #f1c57a; color: #2b2d31;  }
 QTabBar::tab:hover:!selected { background: #3a3c42; color: #E6E6E6; }
+
 """
 
 def np_rgb_to_qpixmap(img_rgb: np.ndarray, target_size: QtCore.QSize) -> QtGui.QPixmap:
@@ -107,14 +114,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Side panel
         self.side = QtWidgets.QFrame(objectName="SidePanel")
         side = QtWidgets.QVBoxLayout(self.side)
-        side.setContentsMargins(12, 12, 12, 12)
-        side.setSpacing(12)
-        side.addWidget(QtWidgets.QLabel("DIP LAB — Linear Filters", objectName="Banner", 
-                                       alignment=QtCore.Qt.AlignCenter))
+
 
         # Form controls
         form = QtWidgets.QFormLayout()
-        form.setLabelAlignment(QtCore.Qt.AlignRight)
+        form.setLabelAlignment(QtCore.Qt.AlignLeft)
 
         self.cboFilter = QtWidgets.QComboBox()
         self.cboFilter.addItems(["Box/Average", "Gaussian", "Sobel X", "Sobel Y", "Laplacian", "Unsharp"])
@@ -282,10 +286,23 @@ class MainWindow(QtWidgets.QMainWindow):
         cv2.imwrite(path, bgr)
         QtWidgets.QMessageBox.information(self, "OK", f"Saved: {path}")
 
-if __name__ == "__main__":
-    import sys
+def main() -> None:
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
     app = QtWidgets.QApplication(sys.argv)
+
+    QtWidgets.QApplication.setStyle("Fusion")
+
+    pal = app.palette()
+    for role in (QtGui.QPalette.Window, QtGui.QPalette.Base, QtGui.QPalette.Button):
+        pal.setColor(role, QtGui.QColor("#1a1b1e"))
+    for role in (QtGui.QPalette.Text, QtGui.QPalette.WindowText, QtGui.QPalette.ButtonText):
+        pal.setColor(role, QtGui.QColor("#e6e6e6"))
+    app.setPalette(pal)
+
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
