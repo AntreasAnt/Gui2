@@ -1,10 +1,9 @@
 # filtering_gui.py
 # -*- coding: utf-8 -*-
 """
-Image Filtering — Linear (GUI only)
+Image Filtering & Compression Lab GUI
 -----------------------------------
-This is a ready-to-run GUI skeleton for linear spatial filtering.
-Students will implement the actual filtering logic separately.
+Extended GUI for linear filters, non-linear filters, and compression
 """
 import os
 import sys
@@ -12,7 +11,7 @@ import cv2
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
 
-APP_TITLE = "Image Filtering — Linear"
+APP_TITLE = "Image Filtering & Compression"
 
 DARK_QSS = """
 * { font-family: 'Segoe UI', Arial; font-size: 10.5pt; color: #E6E6E6; }
@@ -24,7 +23,10 @@ QPushButton:pressed { background-color: #e7b86a; }
 QPushButton#Secondary { background: #3a3c42; color: #E6E6E6; font-weight: 500; }
 QPushButton#Secondary:hover { background: #44474e; }
 
-
+QSpinBox, QDoubleSpinBox {
+ background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px;
+ color: white;
+}
 QComboBox {
  background: #1c1d21; border: 1px solid #3a3c42; padding: 6px 20px 6px 6px; border-radius: 6px;
  min-width: 120px; selection-background-color: #f1c57a; color: white;
@@ -32,15 +34,45 @@ QComboBox {
 QLineEdit, QSlider {
  background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px;
 }
-
+QTextEdit {
+ background: #1c1d21; border: 1px solid #3a3c42; color: #E6E6E6; padding: 8px;
+}
+QGroupBox {
+ border: 1px solid #3a3c42; border-radius: 6px; margin-top: 8px; padding-top: 12px; font-weight: 600;
+}
+QGroupBox::title {
+ subcontrol-origin: margin; left: 10px; padding: 0 5px;
+}
 QSlider::groove:horizontal { height: 6px; background: #3a3c42; border-radius: 3px; }
 QSlider::handle:horizontal { background: #f1c57a; width: 14px; border-radius: 7px; margin: -4px 0; }
 QTabWidget::pane { border: 1px solid #3a3c42; background-color: #1f2023; }
 QTabBar::tab { background: #2b2d31; color: white; padding: 10px 20px; margin-right: 0px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
 QTabBar::tab:selected { background: #f1c57a; color: #2b2d31;  }
 QTabBar::tab:hover:!selected { background: #3a3c42; color: #E6E6E6; }
-
 """
+
+# ==================== TODO FUNCTIONS ====================
+# Import the TODO functions from nonlinear_compression module
+try:
+    from nonlinear_compression import (
+        apply_nonlinear_filter,
+        compress_image,
+        compute_diff_image,
+        compute_metrics
+    )
+except ImportError:
+    # Fallback if module not found
+    def apply_nonlinear_filter(img_rgb: np.ndarray, kind: str, **params) -> np.ndarray:
+        raise NotImplementedError("TODO: Create nonlinear_compression.py and implement apply_nonlinear_filter")
+
+    def compress_image(img_rgb: np.ndarray, codec: str, quality: int) -> tuple:
+        raise NotImplementedError("TODO: Create nonlinear_compression.py and implement compress_image")
+
+    def compute_diff_image(orig_rgb: np.ndarray, comp_rgb: np.ndarray) -> np.ndarray:
+        raise NotImplementedError("TODO: Create nonlinear_compression.py and implement compute_diff_image")
+
+    def compute_metrics(orig_rgb: np.ndarray, comp_rgb: np.ndarray, encoded_bytes: bytes, codec: str) -> str:
+        raise NotImplementedError("TODO: Create nonlinear_compression.py and implement compute_metrics")
 
 def np_rgb_to_qpixmap(img_rgb: np.ndarray, target_size: QtCore.QSize) -> QtGui.QPixmap:
     if img_rgb is None:
@@ -120,6 +152,9 @@ class MainWindow(QtWidgets.QMainWindow):
         form = QtWidgets.QFormLayout()
         form.setLabelAlignment(QtCore.Qt.AlignLeft)
 
+        # Linear Filters Section
+        form.addRow(QtWidgets.QLabel("— Linear Filters —"))
+        
         self.cboFilter = QtWidgets.QComboBox()
         self.cboFilter.addItems(["Box/Average", "Gaussian", "Sobel X", "Sobel Y", "Laplacian", "Unsharp"])
 
@@ -159,13 +194,49 @@ class MainWindow(QtWidgets.QMainWindow):
         form.addRow("", self.chkGray)
         form.addRow("Unsharp α:", alphaRow)
 
+        # Non-Linear Filters Section
+        form.addRow(QtWidgets.QLabel("— Non-Linear Filters —"))
+        
+        self.cboNLFilter = QtWidgets.QComboBox()
+        self.cboNLFilter.addItems(["Median", "Bilateral", "NLMeans"])
+        
+        self.spnNLK = QtWidgets.QSpinBox()
+        self.spnNLK.setRange(1, 99)
+        self.spnNLK.setSingleStep(2)
+        self.spnNLK.setValue(5)
+        
+        self.spnBilateralD = QtWidgets.QSpinBox()
+        self.spnBilateralD.setRange(1, 25)
+        self.spnBilateralD.setValue(7)
+        
+        self.dspSigmaColor = QtWidgets.QDoubleSpinBox()
+        self.dspSigmaColor.setRange(1.0, 250.0)
+        self.dspSigmaColor.setValue(75.0)
+        
+        self.dspSigmaSpace = QtWidgets.QDoubleSpinBox()
+        self.dspSigmaSpace.setRange(1.0, 250.0)
+        self.dspSigmaSpace.setValue(75.0)
+        
+        self.dspNLMeansH = QtWidgets.QDoubleSpinBox()
+        self.dspNLMeansH.setRange(1.0, 30.0)
+        self.dspNLMeansH.setValue(10.0)
+        
+        form.addRow("NL Filter:", self.cboNLFilter)
+        form.addRow("Kernel (odd):", self.spnNLK)
+        form.addRow("Bilateral d:", self.spnBilateralD)
+        form.addRow("σ Color:", self.dspSigmaColor)
+        form.addRow("σ Space:", self.dspSigmaSpace)
+        form.addRow("NLMeans h:", self.dspNLMeansH)
+
         side.addLayout(form)
 
         # Buttons
         btnRow = QtWidgets.QHBoxLayout()
-        self.btnApply = QtWidgets.QPushButton("Apply")
+        self.btnApply = QtWidgets.QPushButton("Apply Linear")
+        self.btnApplyNL = QtWidgets.QPushButton("Apply Non-Linear")
         self.btnReset = QtWidgets.QPushButton("Reset")
         btnRow.addWidget(self.btnApply)
+        btnRow.addWidget(self.btnApplyNL)
         btnRow.addWidget(self.btnReset)
         side.addLayout(btnRow)
 
@@ -175,8 +246,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs = QtWidgets.QTabWidget()
         self.tabOrig = QtWidgets.QWidget()
         self.tabFilt = QtWidgets.QWidget()
+        self.tabComp = QtWidgets.QWidget()
+        
         self.tabs.addTab(self.tabOrig, "Original")
         self.tabs.addTab(self.tabFilt, "Filtered")
+        self.tabs.addTab(self.tabComp, "Compression")
 
         oLay = QtWidgets.QVBoxLayout(self.tabOrig)
         oLay.setContentsMargins(8, 8, 8, 8)
@@ -188,15 +262,86 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viewFilt = ScaledImageLabel("— Apply a filter —")
         fLay.addWidget(self.viewFilt, 1)
 
+        # Compression Tab
+        cLay = QtWidgets.QVBoxLayout(self.tabComp)
+        cLay.setContentsMargins(8, 8, 8, 8)
+        
+        # Compression controls
+        ctrlRow = QtWidgets.QHBoxLayout()
+        self.cmbCodec = QtWidgets.QComboBox()
+        self.cmbCodec.addItems(["JPEG", "PNG", "WebP", "TIFF-LZW"])
+        self.sldQuality = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.sldQuality.setRange(1, 100)
+        self.sldQuality.setValue(80)
+        self.lblQuality = QtWidgets.QLabel("Quality: 80")
+        self.btnCompress = QtWidgets.QPushButton("Compress")
+        self.btnSaveComp = QtWidgets.QPushButton("Save Compressed")
+        self.btnSaveComp.setEnabled(False)
+        
+        ctrlRow.addWidget(QtWidgets.QLabel("Codec:"))
+        ctrlRow.addWidget(self.cmbCodec)
+        ctrlRow.addSpacing(20)
+        ctrlRow.addWidget(QtWidgets.QLabel("Quality:"))
+        ctrlRow.addWidget(self.sldQuality, 1)
+        ctrlRow.addWidget(self.lblQuality)
+        ctrlRow.addSpacing(20)
+        ctrlRow.addWidget(self.btnCompress)
+        ctrlRow.addWidget(self.btnSaveComp)
+        cLay.addLayout(ctrlRow)
+        
+        # Three image viewers
+        viewersRow = QtWidgets.QHBoxLayout()
+        
+        origBox = QtWidgets.QGroupBox("Original")
+        origBoxLay = QtWidgets.QVBoxLayout(origBox)
+        self.viewCompOrig = ScaledImageLabel("—")
+        self.viewCompOrig.setMinimumSize(300, 250)
+        origBoxLay.addWidget(self.viewCompOrig)
+        
+        compBox = QtWidgets.QGroupBox("Compressed")
+        compBoxLay = QtWidgets.QVBoxLayout(compBox)
+        self.viewComp = ScaledImageLabel("—")
+        self.viewComp.setMinimumSize(300, 250)
+        compBoxLay.addWidget(self.viewComp)
+        
+        diffBox = QtWidgets.QGroupBox("Difference")
+        diffBoxLay = QtWidgets.QVBoxLayout(diffBox)
+        self.viewDiff = ScaledImageLabel("—")
+        self.viewDiff.setMinimumSize(300, 250)
+        diffBoxLay.addWidget(self.viewDiff)
+        
+        viewersRow.addWidget(origBox)
+        viewersRow.addWidget(compBox)
+        viewersRow.addWidget(diffBox)
+        cLay.addLayout(viewersRow, 2)
+        
+        # Metrics display
+        metricsBox = QtWidgets.QGroupBox("Quality Metrics")
+        metricsLay = QtWidgets.QVBoxLayout(metricsBox)
+        self.txtMetrics = QtWidgets.QTextEdit()
+        self.txtMetrics.setReadOnly(True)
+        self.txtMetrics.setMaximumHeight(120)
+        self.txtMetrics.setHtml("<p>Compress an image to see metrics</p>")
+        metricsLay.addWidget(self.txtMetrics)
+        cLay.addWidget(metricsBox)
+
         splitter.addWidget(self.tabs)
         splitter.setSizes([360, 800])
+
+        # Store compressed data
+        self._comp_rgb = None
+        self._comp_bytes = b""
 
         # Connect signals
         self.btnOpen.clicked.connect(self.on_open)
         self.btnSave.clicked.connect(self.on_save)
         self.btnApply.clicked.connect(self.on_apply)
+        self.btnApplyNL.clicked.connect(self.on_apply_nl)
         self.btnReset.clicked.connect(self.on_reset)
         self.sldAlpha.valueChanged.connect(lambda v: self.lblAlpha.setText(f"α = {v/100:.2f}"))
+        self.sldQuality.valueChanged.connect(lambda v: self.lblQuality.setText(f"Quality: {v}"))
+        self.btnCompress.clicked.connect(self.on_compress)
+        self.btnSaveComp.clicked.connect(self.on_save_compressed)
 
         self.setStyleSheet(DARK_QSS)
 
@@ -223,8 +368,16 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self._orig = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         self._filtered = None
+        self._comp_rgb = None
+        self._comp_bytes = b""
+        
         self.viewOrig.set_image_rgb(self._orig)
         self.viewFilt.clear_image("— Apply a filter —")
+        self.viewCompOrig.set_image_rgb(self._orig)
+        self.viewComp.clear_image("—")
+        self.viewDiff.clear_image("—")
+        self.txtMetrics.setHtml("<p>Compress an image to see metrics</p>")
+        self.btnSaveComp.setEnabled(False)
         self.tabs.setCurrentWidget(self.tabOrig)
 
     def on_apply(self):
@@ -285,6 +438,87 @@ class MainWindow(QtWidgets.QMainWindow):
         bgr = cv2.cvtColor(self._filtered, cv2.COLOR_RGB2BGR)
         cv2.imwrite(path, bgr)
         QtWidgets.QMessageBox.information(self, "OK", f"Saved: {path}")
+
+    def on_apply_nl(self):
+        """Apply non-linear filter"""
+        if self._orig is None:
+            QtWidgets.QMessageBox.information(self, "Info", "Load an image first.")
+            return
+        
+        kind = self.cboNLFilter.currentText()
+        params = {
+            'ksize': int(self.spnNLK.value()),
+            'bilateral_d': int(self.spnBilateralD.value()),
+            'bilateral_sigma_color': float(self.dspSigmaColor.value()),
+            'bilateral_sigma_space': float(self.dspSigmaSpace.value()),
+            'nlmeans_h': float(self.dspNLMeansH.value())
+        }
+        
+        try:
+            result = apply_nonlinear_filter(self._orig, kind, **params)
+            self._filtered = result.astype(np.uint8)
+            self.viewFilt.set_image_rgb(self._filtered)
+            self.tabs.setCurrentWidget(self.tabFilt)
+        except NotImplementedError:
+            QtWidgets.QMessageBox.information(self, "TODO", 
+                "Please implement apply_nonlinear_filter function")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Error applying filter:\n{e}")
+
+    def on_compress(self):
+        """Compress image and display results"""
+        if self._orig is None:
+            QtWidgets.QMessageBox.information(self, "Info", "Load an image first.")
+            return
+        
+        codec = self.cmbCodec.currentText()
+        quality = int(self.sldQuality.value())
+        
+        try:
+            comp_rgb, enc_bytes = compress_image(self._orig, codec, quality)
+            self._comp_rgb = comp_rgb
+            self._comp_bytes = enc_bytes
+            
+            # Display compressed image
+            self.viewComp.set_image_rgb(comp_rgb)
+            
+            # Compute and display difference
+            diff_img = compute_diff_image(self._orig, comp_rgb)
+            self.viewDiff.set_image_rgb(diff_img)
+            
+            # Compute and display metrics
+            metrics_html = compute_metrics(self._orig, comp_rgb, enc_bytes, codec)
+            self.txtMetrics.setHtml(metrics_html)
+            
+            self.btnSaveComp.setEnabled(True)
+            self.tabs.setCurrentWidget(self.tabComp)
+            
+        except NotImplementedError:
+            QtWidgets.QMessageBox.information(self, "TODO",
+                "Please implement compression functions:\n"
+                "- compress_image\n- compute_diff_image\n- compute_metrics")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Error during compression:\n{e}")
+
+    def on_save_compressed(self):
+        """Save compressed image file"""
+        if not self._comp_bytes:
+            QtWidgets.QMessageBox.information(self, "Info", "No compressed image to save.")
+            return
+        
+        codec = self.cmbCodec.currentText()
+        ext_map = {"JPEG": ".jpg", "PNG": ".png", "WebP": ".webp", "TIFF-LZW": ".tiff"}
+        ext = ext_map.get(codec, ".bin")
+        
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save Compressed", "", f"{codec} (*{ext})")
+        if not path:
+            return
+        
+        with open(path, 'wb') as f:
+            f.write(self._comp_bytes)
+        
+        QtWidgets.QMessageBox.information(self, "OK", f"Saved compressed file: {path}")
 
 def main() -> None:
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
